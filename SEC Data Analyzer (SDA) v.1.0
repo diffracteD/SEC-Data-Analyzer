@@ -1,0 +1,160 @@
+#! /usr/bin/env python
+######################################################################################################################
+##################     SEC Data Analyzer (SDA)   #####################################################################
+########################### v.1.0     (11/18/2019)          ##########################################################
+###########################  Author: Abhisek Mondal, UCSF ############################################################
+######################################################################################################################
+"""
+Program Description and input:
+> Takes a directory path containing all csv files
+> Walks along the directory to search and analyze CSV files
+>Takes a CSV file as input with .txt extension.
+>Creates specific data structue and performs user defined mining 
+>Outputs:
+    * maximum intensity with corresponding volume or time within the user defined range
+    * volume and intensity in a user defined area (optional).
+...
+
+"""
+
+import os
+import sys
+import itertools
+from os.path import basename
+from itertools import islice
+import glob
+import csv
+import time
+
+print "*********************************************************************************************************"
+print "                  Hi there! You are executing SEC_peakAnalyzer algorithm on "+ time.asctime()+" PST "
+print "                                     PROGRAM NAME: SEC Data Analyzer (SDA) v.1.0 "
+print "                                             designed by => Abhisek Mondal"
+print "                                 abhisek.mondal@ucsf.edu[github:https://github.com/diffracteD]"
+print "                                                 UCSF, California, USA"
+print "**********************************************************************************************************"
+
+
+path=raw_input("Please enter the directory path containing all the csv files(Do Not enter / at the end of the path). . . \n ")
+volMin=raw_input(" Enter the lower boundary of volumetric search... \n")
+volMax=raw_input(" Enter the upper boundary of vulumetric search... \n")
+
+#Starting to walk across directories of given path to open files
+for root, dirs, files in os.walk(path):
+    listOfFile = glob.iglob(os.path.join(root, '*.txt'))  #Supplied csv is in txt extension. Do not change the txt to csv else the file gets scrambled...
+    print "          Enterring Directory: " + root
+    
+    maxOutList = [] #List for storing maximum vol/min vs intensity values including filename for csv output...   
+    
+    for csvFileName in listOfFile:
+        #Checking if target file is empty...
+        if os.stat(csvFileName)[6] != 0: 
+            #Trimming the path and keeping only the filename for cool output...
+            filename = basename(csvFileName)
+            
+             
+            
+            #Generating header for the csv output..
+            #maxOutHeader = str('File Name'), str('Max Peak'),str('volume/time'), str('intensity')
+            #maxOutList.append(maxOutHeader)            
+            
+            #Opening and preparing .csv as per python array syatem...
+            print " > Processing File: " + filename #shows current file being read...
+            
+            csvList = [] #storing all csv data as python list  
+            modifiedCsvList = [] #storing all csv data after filtering only volume vs intensity section...
+            inp = open(csvFileName, 'r').read().strip().split('\n')
+            
+        
+            
+            #Mapping the csv file...
+            for line in map(str.split, inp):
+                #print line
+                csvList.append(line)
+                
+            #Determining from which Line program starts to enlist data {V V IMP.}, as different FSEC peak arats from different line in CSV file
+            #Indexing all the lines in CSV > then filtering based on value 'R.Time...' as the data starts after that.
+            #Converting value from enumerate to string to count len(as lowest among all the index xorresponds to the actual data)
+            for index, value in enumerate(csvList):              ###Weired things going on
+                if value == ['R.Time', '(min)', 'Intensity']:
+                    if len(str(index))<5:
+                        #Now adding +1 to the index as the value starts after this line.
+                        skipLine = int(index) +1 #this value will be used for slicing the csvList and discard other junk information...
+                        #print index, value
+                        #print skipLine
+                
+            #Filetering the csvList to get the desired range of data...
+            volume = []
+            intensity = []
+            
+            
+            
+            #value iterator
+            for item in csvList[skipLine:]:
+                print item
+                #Creating exception for empty list entry based termination...
+                try:
+                    #print float (item[0]), float(item[1])
+                    modifiedCsvList.append(item)
+                    volume.append(float(item[0]))
+                    intensity.append(int(item[1]))  #volumes comes as int as per the csv
+                    
+                except IndexError:
+                    break             #Breaks the iteration upon first encounter of empty list...
+                
+            
+                
+                       
+            #Peak search by volumetri area...
+            #variable handler takes user input and sear and output intensities in that region
+            #z = max(intensity)  #filtering out maximum intensity value
+            
+            #Opening list for storing all the values in user defined range, will be used in maximum intensity calculation...
+            requiredVolume = []
+            requiredIntensity = []
+            
+            for vol, uv in zip(volume, intensity):
+                
+                #detemining volume vs peak list based on user defined ranges...
+                if len(volMin) > 0 and volMax > 0:
+                    
+                    if vol >= float(volMin) and vol <= float(volMax):    #printing zones of peak based on user provided bounderies...
+                        #print vol, uv
+                        requiredVolume.append(vol)
+                        requiredIntensity.append(uv)
+                        #Active below lines if all the intensities within user deined boundary is required...
+                        #boundaryValues = str(vol), str(uv) #Taking in all the value within desired range before filtering out max intensity data...
+                        #maxOutList.append(boundaryValues)                        
+                        
+            z = max(requiredIntensity)   #filtering out maximum intensity value within the user defined range
+            for reqVol, reqInt in zip(requiredVolume, requiredIntensity):
+                if reqInt == z:
+                    print " >> Location of maximum UV intensity (time/volume, intensity):"+ str(' ')+ str(reqVol)+'  '+str(reqInt)
+                    m = 'Max Peak Info(time/volume, intensity):'  #Just to make sure each alphabet does not occupy each column...
+                    maxOut = str(filename), str(m),str(reqVol), str(reqInt)
+                    #print maxOut
+                    maxOutList.append(maxOut)
+                            
+                                        
+            #print maxOutList               
+            #______________________________________________________________________________________________________________________________________
+            #for items in maxOutList:
+            #    print items
+            #Writing csv output...
+            #List architecture: Filename
+            #                   Max Peak Info: vol intensity
+            #                   vol intensities (for user defined bounderies)
+            #_______________________________________________________________________________________________________________________________________
+    outFile= path +'/'+'peakAnalyzerOut.csv'  #name of the output file
+    with open(outFile, 'wb') as outputFile:
+        for items in maxOutList:            #this loop is necessary else whole list will be dumped into one massive row in csv file...
+            #print items
+            wr = csv.writer(outputFile, quoting=csv.QUOTE_ALL) #writer operator writes the list to a csv file...
+            wr.writerow(items)  #writing the maxOutList into CSV format in the same user provided path...
+            
+    print " __________________________________________________________ "
+    print "| >>> CSV file generated under the given path...           |"
+    print "| >>>    *** adios amigo ! ***                             |"
+    print "| >>> Word of Advice: Life is short for manual processing !|"
+    print "|__________________________________________________________|"
+        
